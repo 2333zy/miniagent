@@ -83,8 +83,19 @@ async function executeTool(action: Action): Promise<string> {
   return `Unknown tool: ${action.tool}`;
 }
 
-// 第六步：把“模型决策、工具执行、结果回填”串成一个循环。
-async function runAgent(): Promise<void> {
+// 第六步：从命令行读取用户输入的问题。
+function getUserQuestion(): string {
+  const question = process.argv.slice(2).join(" ").trim();
+
+  if (question) {
+    return question;
+  }
+
+  return "What is the weather in Shanghai today?";
+}
+
+// 第七步：把“模型决策、工具执行、结果回填”串成一个循环。
+async function runAgent(question: string): Promise<void> {
   const history: Message[] = [
     {
       role: "system",
@@ -92,9 +103,12 @@ async function runAgent(): Promise<void> {
     },
     {
       role: "user",
-      content: "What is the weather in Shanghai today?",
+      content: question,
     },
   ];
+
+  console.log("User question:");
+  console.log(question);
 
   for (let step = 1; step <= 5; step = step + 1) {
     console.log(`\n--- Step ${step} ---`);
@@ -136,5 +150,5 @@ async function runAgent(): Promise<void> {
   console.log("Agent stopped because it reached the max step limit.");
 }
 
-// 第七步：启动 Agent。
-await runAgent();
+// 第八步：启动 Agent。
+await runAgent(getUserQuestion());
