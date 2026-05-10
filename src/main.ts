@@ -1,4 +1,6 @@
-// 第一版目标：不用真实大模型，先跑通 Agent 的基本循环。
+import "dotenv/config";
+
+// 当前目标：先跑通 Agent 循环，并为后续接入真实大模型准备配置。
 
 type Role = "system" | "user" | "assistant";
 
@@ -28,6 +30,12 @@ type WeatherInput = {
   time: string;
 };
 
+type LLMConfig = {
+  apiKey?: string;
+  baseUrl: string;
+  model: string;
+};
+
 // 第一步：告诉模型必须用什么格式表达“调用工具”或“最终回答”。
 const SYSTEM_PROMPT = `
 You are a tiny teaching Agent.
@@ -40,7 +48,24 @@ When you know the final answer, respond like this:
 <final>Your answer here.</final>
 `;
 
-// 第二步：先用假模型模拟真实大模型的多轮工具调用。
+// 第二步：读取真实大模型需要的环境变量，但暂时还不调用真实模型。
+function loadLLMConfig(): LLMConfig {
+  return {
+    apiKey: process.env.OPENAI_API_KEY,
+    baseUrl: process.env.OPENAI_BASE_URL ?? "https://api.deepseek.com",
+    model: process.env.OPENAI_MODEL ?? "deepseek-chat",
+  };
+}
+
+// 第三步：打印配置状态，只显示是否已配置密钥，不打印密钥本身。
+function printLLMConfigStatus(config: LLMConfig): void {
+  console.log("LLM config:");
+  console.log(`- API key: ${config.apiKey ? "configured" : "missing"}`);
+  console.log(`- Base URL: ${config.baseUrl}`);
+  console.log(`- Model: ${config.model}`);
+}
+
+// 第四步：先用假模型模拟真实大模型的多轮工具调用。
 async function fakeLLM(messages: Message[]): Promise<string> {
   const allMessages = messages.map((message) => message.content).join("\n");
   const userQuestion = messages.find((message) => message.role === "user")?.content ?? "";
@@ -78,7 +103,7 @@ async function fakeLLM(messages: Message[]): Promise<string> {
   return `<final>我已经先获取当前时间 ${currentTime}，再把这个时间传给天气工具。根据工具结果，上海今天是多云，气温 22°C。</final>`;
 }
 
-// 第三步：准备两个工具，分别模拟查询时间和查询天气。
+// 第五步：准备两个工具，分别模拟查询时间和查询天气。
 async function getTime(_input: string): Promise<string> {
   return `Current time: ${new Date().toISOString()}`;
 }
@@ -97,13 +122,13 @@ async function getWeather(input: string): Promise<string> {
   return `Weather result: ${data.city} weather at ${data.time} is cloudy, 22°C`;
 }
 
-// 第四步：把所有工具集中登记到工具表里。
+// 第六步：把所有工具集中登记到工具表里。
 const tools: ToolMap = {
   getTime,
   getWeather,
 };
 
-// 第五步：把模型返回的文本解析成程序能执行的结构。
+// 第七步：把模型返回的文本解析成程序能执行的结构。
 function parseAssistantOutput(text: string): ParsedAssistantOutput {
   const actionMatch = text.match(/<action tool="([^"]+)">([\s\S]*?)<\/action>/);
 
@@ -129,7 +154,7 @@ function parseAssistantOutput(text: string): ParsedAssistantOutput {
   };
 }
 
-// 第六步：根据模型请求的工具名，从工具表中找到并执行对应的工具函数。
+// 第八步：根据模型请求的工具名，从工具表中找到并执行对应的工具函数。
 async function executeTool(action: Action): Promise<string> {
   const tool = tools[action.tool];
 
@@ -148,7 +173,7 @@ async function executeTool(action: Action): Promise<string> {
   }
 }
 
-// 第七步：从命令行读取用户输入的问题。
+// 第九步：从命令行读取用户输入的问题。
 function getUserQuestion(): string {
   const question = process.argv.slice(2).join(" ").trim();
 
@@ -159,8 +184,12 @@ function getUserQuestion(): string {
   return "What is the weather in Shanghai today?";
 }
 
-// 第八步：把“模型决策、工具执行、结果回填”串成一个循环。
+// 第十步：把“模型决策、工具执行、结果回填”串成一个循环。
 async function runAgent(question: string): Promise<void> {
+  const llmConfig = loadLLMConfig();
+
+  printLLMConfigStatus(llmConfig);
+
   const history: Message[] = [
     {
       role: "system",
@@ -215,5 +244,5 @@ async function runAgent(question: string): Promise<void> {
   console.log("Agent stopped because it reached the max step limit.");
 }
 
-// 第九步：启动 Agent。
+// 第十一步：启动 Agent。
 await runAgent(getUserQuestion());

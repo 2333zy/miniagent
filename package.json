@@ -11,5 +11,8 @@
     "@types/node": "^25.6.2",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2"
   }
 }
