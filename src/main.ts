@@ -23,13 +23,18 @@ type ParsedAssistantOutput = {
   final?: string;
 };
 
+type WeatherInput = {
+  city: string;
+  time: string;
+};
+
 // 第一步：告诉模型必须用什么格式表达“调用工具”或“最终回答”。
 const SYSTEM_PROMPT = `
 You are a tiny teaching Agent.
 
 When you need a tool, respond like this:
 <action tool="getTime">{}</action>
-<action tool="getWeather">{"city":"Shanghai"}</action>
+<action tool="getWeather">{"city":"Shanghai","time":"2026-05-10T15:00:00.000Z"}</action>
 
 When you know the final answer, respond like this:
 <final>Your answer here.</final>
@@ -43,6 +48,7 @@ async function fakeLLM(messages: Message[]): Promise<string> {
   const hasToolError = allMessages.includes("Tool error");
   const hasTimeObservation = allMessages.includes("Current time:");
   const hasWeatherObservation = allMessages.includes("Weather result:");
+  const currentTime = allMessages.match(/Current time: ([^<\n]+)/)?.[1] ?? "";
 
   if (hasToolError) {
     return "<final>工具调用失败了，但 Agent 没有崩溃。真实 Agent 会把这个错误结果交给模型，让模型决定下一步怎么修正。</final>";
@@ -61,10 +67,15 @@ async function fakeLLM(messages: Message[]): Promise<string> {
   }
 
   if (!hasWeatherObservation) {
-    return '<action tool="getWeather">{"city":"Shanghai"}</action>';
+    const weatherInput = JSON.stringify({
+      city: "Shanghai",
+      time: currentTime,
+    });
+
+    return `<action tool="getWeather">${weatherInput}</action>`;
   }
 
-  return "<final>我已经先获取当前时间，再查询上海天气。根据工具结果，上海今天是多云，气温 22°C。</final>";
+  return `<final>我已经先获取当前时间 ${currentTime}，再把这个时间传给天气工具。根据工具结果，上海今天是多云，气温 22°C。</final>`;
 }
 
 // 第三步：准备两个工具，分别模拟查询时间和查询天气。
@@ -73,13 +84,17 @@ async function getTime(_input: string): Promise<string> {
 }
 
 async function getWeather(input: string): Promise<string> {
-  const data = JSON.parse(input) as { city: string };
+  const data = JSON.parse(input) as Partial<WeatherInput>;
 
   if (typeof data.city !== "string") {
     throw new Error("getWeather 需要 city 字段，并且 city 必须是字符串");
   }
 
-  return `Weather result: ${data.city} weather is cloudy, 22°C`;
+  if (typeof data.time !== "string") {
+    throw new Error("getWeather 需要 time 字段，并且 time 必须是字符串");
+  }
+
+  return `Weather result: ${data.city} weather at ${data.time} is cloudy, 22°C`;
 }
 
 // 第四步：把所有工具集中登记到工具表里。
