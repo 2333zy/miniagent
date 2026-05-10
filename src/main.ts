@@ -1,6 +1,6 @@
 import "dotenv/config";
 
-// 当前目标：先跑通 Agent 循环，并为后续接入真实大模型准备配置。
+// 当前目标：使用真实大模型跑通 Agent 的基本循环。
 
 type Role = "system" | "user" | "assistant";
 
@@ -102,7 +102,7 @@ function printLLMConfigStatus(config: LLMConfig): void {
   console.log(`- API key: ${config.apiKey ? "configured" : "missing"}`);
   console.log(`- Base URL: ${config.baseUrl}`);
   console.log(`- Model: ${config.model}`);
-  console.log(`- Runtime: ${config.apiKey ? "real LLM" : "fake LLM fallback"}`);
+  console.log("- Runtime: real LLM");
 }
 
 // 第四步：根据配置拼出真实大模型的聊天接口地址。
@@ -151,66 +151,7 @@ async function callLLM(messages: Message[], config: LLMConfig): Promise<string> 
   return content;
 }
 
-// 第六步：没有密钥时继续用假模型，有密钥时切换到真实模型。
-async function callModel(messages: Message[], config: LLMConfig): Promise<string> {
-  if (!config.apiKey) {
-    return await fakeLLM(messages);
-  }
-
-  try {
-    return await callLLM(messages, config);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-
-    console.log(`Real LLM failed: ${message}`);
-    console.log("Falling back to fake LLM for this run.");
-
-    return await fakeLLM(messages);
-  }
-}
-
-// 第七步：先用假模型模拟真实大模型的多轮工具调用。
-async function fakeLLM(messages: Message[]): Promise<string> {
-  const observations = messages
-    .filter((message) => message.content.includes("<observation>"))
-    .map((message) => message.content)
-    .join("\n");
-  const userQuestion = messages.find((message) => message.role === "user")?.content ?? "";
-  const normalizedQuestion = userQuestion.toLowerCase();
-  const hasToolError = observations.includes("Tool error");
-  const hasTimeObservation = observations.includes("Current time:");
-  const hasWeatherObservation = observations.includes("Weather result:");
-  const currentTime = observations.match(/Current time: ([^<\n]+)/)?.[1] ?? "";
-
-  if (hasToolError) {
-    return "<final>工具调用失败了，但 Agent 没有崩溃。真实 Agent 会把这个错误结果交给模型，让模型决定下一步怎么修正。</final>";
-  }
-
-  if (normalizedQuestion.includes("unknown tool")) {
-    return '<action tool="unknownTool">{}</action>';
-  }
-
-  if (normalizedQuestion.includes("bad json")) {
-    return "<action tool=\"getWeather\">not json</action>";
-  }
-
-  if (!hasTimeObservation) {
-    return '<action tool="getTime">{}</action>';
-  }
-
-  if (!hasWeatherObservation) {
-    const weatherInput = JSON.stringify({
-      city: "Shanghai",
-      time: currentTime,
-    });
-
-    return `<action tool="getWeather">${weatherInput}</action>`;
-  }
-
-  return `<final>我已经先获取当前时间 ${currentTime}，再把这个时间传给天气工具。根据工具结果，上海今天是多云，气温 22°C。</final>`;
-}
-
-// 第八步：准备两个工具，分别模拟查询时间和查询天气。
+// 第六步：准备两个工具，分别模拟查询时间和查询天气。
 async function getTime(_input: string): Promise<string> {
   return `Current time: ${new Date().toISOString()}`;
 }
@@ -229,13 +170,13 @@ async function getWeather(input: string): Promise<string> {
   return `Weather result: ${data.city} weather at ${data.time} is cloudy, 22°C`;
 }
 
-// 第九步：把所有工具集中登记到工具表里。
+// 第七步：把所有工具集中登记到工具表里。
 const tools: ToolMap = {
   getTime,
   getWeather,
 };
 
-// 第十步：把模型返回的文本解析成程序能执行的结构。
+// 第八步：把模型返回的文本解析成程序能执行的结构。
 function parseAssistantOutput(text: string): ParsedAssistantOutput {
   const actionMatch = text.match(/<action tool="([^"]+)">([\s\S]*?)<\/action>/);
 
@@ -261,7 +202,7 @@ function parseAssistantOutput(text: string): ParsedAssistantOutput {
   };
 }
 
-// 第十一步：根据模型请求的工具名，从工具表中找到并执行对应的工具函数。
+// 第九步：根据模型请求的工具名，从工具表中找到并执行对应的工具函数。
 async function executeTool(action: Action): Promise<string> {
   const tool = tools[action.tool];
 
@@ -280,7 +221,7 @@ async function executeTool(action: Action): Promise<string> {
   }
 }
 
-// 第十二步：从命令行读取用户输入的问题。
+// 第十步：从命令行读取用户输入的问题。
 function getUserQuestion(): string {
   const question = process.argv.slice(2).join(" ").trim();
 
@@ -291,11 +232,15 @@ function getUserQuestion(): string {
   return "What is the weather in Shanghai today?";
 }
 
-// 第十三步：把“模型决策、工具执行、结果回填”串成一个循环。
+// 第十一步：把“模型决策、工具执行、结果回填”串成一个循环。
 async function runAgent(question: string): Promise<void> {
   const llmConfig = loadLLMConfig();
 
   printLLMConfigStatus(llmConfig);
+
+  if (!llmConfig.apiKey) {
+    throw new Error("请先在 .env 中配置 DEEPSEEK_API_KEY");
+  }
 
   const history: Message[] = [
     {
@@ -314,7 +259,7 @@ async function runAgent(question: string): Promise<void> {
   for (let step = 1; step <= 5; step = step + 1) {
     console.log(`\n--- Step ${step} ---`);
 
-    const assistantText = await callModel(history, llmConfig);
+    const assistantText = await callLLM(history, llmConfig);
 
     console.log("Assistant raw output:");
     console.log(assistantText);
@@ -351,5 +296,5 @@ async function runAgent(question: string): Promise<void> {
   console.log("Agent stopped because it reached the max step limit.");
 }
 
-// 第十四步：启动 Agent。
+// 第十二步：启动 Agent。
 await runAgent(getUserQuestion());
