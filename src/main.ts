@@ -36,9 +36,30 @@ type LLMConfig = {
   model: string;
 };
 
+type ChatCompletionResponse = {
+  choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
+  error?: {
+    message?: string;
+  };
+};
+
 // 第一步：告诉模型必须用什么格式表达“调用工具”或“最终回答”。
 const SYSTEM_PROMPT = `
 You are a tiny teaching Agent.
+
+You can use these tools:
+- getTime: input is {}
+- getWeather: input is {"city": string, "time": string}
+
+For weather questions, call getTime first.
+After receiving Current time, call getWeather with city and time.
+After receiving Weather result or Tool error, respond with final.
+
+Only output one action or one final answer each turn.
 
 When you need a tool, respond like this:
 <action tool="getTime">{}</action>
@@ -63,17 +84,76 @@ function printLLMConfigStatus(config: LLMConfig): void {
   console.log(`- API key: ${config.apiKey ? "configured" : "missing"}`);
   console.log(`- Base URL: ${config.baseUrl}`);
   console.log(`- Model: ${config.model}`);
+  console.log(`- Runtime: ${config.apiKey ? "real LLM" : "fake LLM fallback"}`);
 }
 
-// 第四步：先用假模型模拟真实大模型的多轮工具调用。
+// 第四步：根据配置拼出真实大模型的聊天接口地址。
+function buildChatCompletionsUrl(baseUrl: string): string {
+  const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
+
+  if (normalizedBaseUrl.endsWith("/chat/completions")) {
+    return normalizedBaseUrl;
+  }
+
+  return `${normalizedBaseUrl}/chat/completions`;
+}
+
+// 第五步：调用真实大模型，让模型根据 history 输出 action 或 final。
+async function callLLM(messages: Message[], config: LLMConfig): Promise<string> {
+  if (!config.apiKey) {
+    throw new Error("缺少 OPENAI_API_KEY，无法调用真实大模型");
+  }
+
+  const response = await fetch(buildChatCompletionsUrl(config.baseUrl), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: config.model,
+      messages,
+      temperature: 0,
+    }),
+  });
+
+  const body = (await response.json().catch(() => null)) as ChatCompletionResponse | null;
+
+  if (!response.ok) {
+    const message = body?.error?.message ?? `${response.status} ${response.statusText}`;
+    throw new Error(`真实大模型请求失败：${message}`);
+  }
+
+  const content = body?.choices?.[0]?.message?.content;
+
+  if (!content) {
+    throw new Error("真实大模型响应里没有 assistant content");
+  }
+
+  return content;
+}
+
+// 第六步：没有密钥时继续用假模型，有密钥时切换到真实模型。
+async function callModel(messages: Message[], config: LLMConfig): Promise<string> {
+  if (!config.apiKey) {
+    return await fakeLLM(messages);
+  }
+
+  return await callLLM(messages, config);
+}
+
+// 第七步：先用假模型模拟真实大模型的多轮工具调用。
 async function fakeLLM(messages: Message[]): Promise<string> {
-  const allMessages = messages.map((message) => message.content).join("\n");
+  const observations = messages
+    .filter((message) => message.content.includes("<observation>"))
+    .map((message) => message.content)
+    .join("\n");
   const userQuestion = messages.find((message) => message.role === "user")?.content ?? "";
   const normalizedQuestion = userQuestion.toLowerCase();
-  const hasToolError = allMessages.includes("Tool error");
-  const hasTimeObservation = allMessages.includes("Current time:");
-  const hasWeatherObservation = allMessages.includes("Weather result:");
-  const currentTime = allMessages.match(/Current time: ([^<\n]+)/)?.[1] ?? "";
+  const hasToolError = observations.includes("Tool error");
+  const hasTimeObservation = observations.includes("Current time:");
+  const hasWeatherObservation = observations.includes("Weather result:");
+  const currentTime = observations.match(/Current time: ([^<\n]+)/)?.[1] ?? "";
 
   if (hasToolError) {
     return "<final>工具调用失败了，但 Agent 没有崩溃。真实 Agent 会把这个错误结果交给模型，让模型决定下一步怎么修正。</final>";
@@ -103,7 +183,7 @@ async function fakeLLM(messages: Message[]): Promise<string> {
   return `<final>我已经先获取当前时间 ${currentTime}，再把这个时间传给天气工具。根据工具结果，上海今天是多云，气温 22°C。</final>`;
 }
 
-// 第五步：准备两个工具，分别模拟查询时间和查询天气。
+// 第八步：准备两个工具，分别模拟查询时间和查询天气。
 async function getTime(_input: string): Promise<string> {
   return `Current time: ${new Date().toISOString()}`;
 }
@@ -122,13 +202,13 @@ async function getWeather(input: string): Promise<string> {
   return `Weather result: ${data.city} weather at ${data.time} is cloudy, 22°C`;
 }
 
-// 第六步：把所有工具集中登记到工具表里。
+// 第九步：把所有工具集中登记到工具表里。
 const tools: ToolMap = {
   getTime,
   getWeather,
 };
 
-// 第七步：把模型返回的文本解析成程序能执行的结构。
+// 第十步：把模型返回的文本解析成程序能执行的结构。
 function parseAssistantOutput(text: string): ParsedAssistantOutput {
   const actionMatch = text.match(/<action tool="([^"]+)">([\s\S]*?)<\/action>/);
 
@@ -154,7 +234,7 @@ function parseAssistantOutput(text: string): ParsedAssistantOutput {
   };
 }
 
-// 第八步：根据模型请求的工具名，从工具表中找到并执行对应的工具函数。
+// 第十一步：根据模型请求的工具名，从工具表中找到并执行对应的工具函数。
 async function executeTool(action: Action): Promise<string> {
   const tool = tools[action.tool];
 
@@ -173,7 +253,7 @@ async function executeTool(action: Action): Promise<string> {
   }
 }
 
-// 第九步：从命令行读取用户输入的问题。
+// 第十二步：从命令行读取用户输入的问题。
 function getUserQuestion(): string {
   const question = process.argv.slice(2).join(" ").trim();
 
@@ -184,7 +264,7 @@ function getUserQuestion(): string {
   return "What is the weather in Shanghai today?";
 }
 
-// 第十步：把“模型决策、工具执行、结果回填”串成一个循环。
+// 第十三步：把“模型决策、工具执行、结果回填”串成一个循环。
 async function runAgent(question: string): Promise<void> {
   const llmConfig = loadLLMConfig();
 
@@ -207,7 +287,7 @@ async function runAgent(question: string): Promise<void> {
   for (let step = 1; step <= 5; step = step + 1) {
     console.log(`\n--- Step ${step} ---`);
 
-    const assistantText = await fakeLLM(history);
+    const assistantText = await callModel(history, llmConfig);
 
     console.log("Assistant raw output:");
     console.log(assistantText);
@@ -244,5 +324,5 @@ async function runAgent(question: string): Promise<void> {
   console.log("Agent stopped because it reached the max step limit.");
 }
 
-// 第十一步：启动 Agent。
+// 第十四步：启动 Agent。
 await runAgent(getUserQuestion());
