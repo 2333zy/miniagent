@@ -38,8 +38,23 @@ When you know the final answer, respond like this:
 // 第二步：先用假模型模拟真实大模型的多轮工具调用。
 async function fakeLLM(messages: Message[]): Promise<string> {
   const allMessages = messages.map((message) => message.content).join("\n");
+  const userQuestion = messages.find((message) => message.role === "user")?.content ?? "";
+  const normalizedQuestion = userQuestion.toLowerCase();
+  const hasToolError = allMessages.includes("Tool error");
   const hasTimeObservation = allMessages.includes("Current time:");
   const hasWeatherObservation = allMessages.includes("Weather result:");
+
+  if (hasToolError) {
+    return "<final>工具调用失败了，但 Agent 没有崩溃。真实 Agent 会把这个错误结果交给模型，让模型决定下一步怎么修正。</final>";
+  }
+
+  if (normalizedQuestion.includes("unknown tool")) {
+    return '<action tool="unknownTool">{}</action>';
+  }
+
+  if (normalizedQuestion.includes("bad json")) {
+    return "<action tool=\"getWeather\">not json</action>";
+  }
 
   if (!hasTimeObservation) {
     return '<action tool="getTime">{}</action>';
@@ -59,6 +74,10 @@ async function getTime(_input: string): Promise<string> {
 
 async function getWeather(input: string): Promise<string> {
   const data = JSON.parse(input) as { city: string };
+
+  if (typeof data.city !== "string") {
+    throw new Error("getWeather 需要 city 字段，并且 city 必须是字符串");
+  }
 
   return `Weather result: ${data.city} weather is cloudy, 22°C`;
 }
@@ -100,10 +119,18 @@ async function executeTool(action: Action): Promise<string> {
   const tool = tools[action.tool];
 
   if (!tool) {
-    return `Unknown tool: ${action.tool}`;
+    return `Tool error: unknown tool "${action.tool}"`;
   }
 
-  return await tool(action.input);
+  try {
+    return await tool(action.input);
+  } catch (error) {
+    if (error instanceof Error) {
+      return `Tool error from ${action.tool}: ${error.message}`;
+    }
+
+    return `Tool error from ${action.tool}: ${String(error)}`;
+  }
 }
 
 // 第七步：从命令行读取用户输入的问题。
