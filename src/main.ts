@@ -70,11 +70,29 @@ When you know the final answer, respond like this:
 `;
 
 // 第二步：读取真实大模型需要的环境变量，但暂时还不调用真实模型。
+function readEnv(...names: string[]): string | undefined {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+
+    if (value && !isPlaceholderValue(value)) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+function isPlaceholderValue(value: string): boolean {
+  const normalizedValue = value.toLowerCase();
+
+  return normalizedValue.includes("your_") || normalizedValue.includes("placeholder");
+}
+
 function loadLLMConfig(): LLMConfig {
   return {
-    apiKey: process.env.OPENAI_API_KEY,
-    baseUrl: process.env.OPENAI_BASE_URL ?? "https://api.deepseek.com",
-    model: process.env.OPENAI_MODEL ?? "deepseek-chat",
+    apiKey: readEnv("DEEPSEEK_API_KEY", "OPENAI_API_KEY"),
+    baseUrl: readEnv("DEEPSEEK_BASE_URL", "OPENAI_BASE_URL") ?? "https://api.deepseek.com",
+    model: readEnv("DEEPSEEK_MODEL", "OPENAI_MODEL") ?? "deepseek-v4-pro",
   };
 }
 
@@ -101,7 +119,7 @@ function buildChatCompletionsUrl(baseUrl: string): string {
 // 第五步：调用真实大模型，让模型根据 history 输出 action 或 final。
 async function callLLM(messages: Message[], config: LLMConfig): Promise<string> {
   if (!config.apiKey) {
-    throw new Error("缺少 OPENAI_API_KEY，无法调用真实大模型");
+    throw new Error("缺少 DEEPSEEK_API_KEY 或 OPENAI_API_KEY，无法调用真实大模型");
   }
 
   const response = await fetch(buildChatCompletionsUrl(config.baseUrl), {
@@ -139,7 +157,16 @@ async function callModel(messages: Message[], config: LLMConfig): Promise<string
     return await fakeLLM(messages);
   }
 
-  return await callLLM(messages, config);
+  try {
+    return await callLLM(messages, config);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    console.log(`Real LLM failed: ${message}`);
+    console.log("Falling back to fake LLM for this run.");
+
+    return await fakeLLM(messages);
+  }
 }
 
 // 第七步：先用假模型模拟真实大模型的多轮工具调用。
