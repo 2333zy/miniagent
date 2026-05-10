@@ -12,6 +12,12 @@ type Action = {
   input: string;
 };
 
+type ToolFunction = (input: string) => Promise<string>;
+
+type ToolMap = {
+  [toolName: string]: ToolFunction | undefined;
+};
+
 type ParsedAssistantOutput = {
   action?: Action;
   final?: string;
@@ -47,7 +53,7 @@ async function fakeLLM(messages: Message[]): Promise<string> {
 }
 
 // 第三步：准备两个工具，分别模拟查询时间和查询天气。
-async function getTime(): Promise<string> {
+async function getTime(_input: string): Promise<string> {
   return `Current time: ${new Date().toISOString()}`;
 }
 
@@ -57,7 +63,13 @@ async function getWeather(input: string): Promise<string> {
   return `Weather result: ${data.city} weather is cloudy, 22°C`;
 }
 
-// 第四步：把模型返回的文本解析成程序能执行的结构。
+// 第四步：把所有工具集中登记到工具表里。
+const tools: ToolMap = {
+  getTime,
+  getWeather,
+};
+
+// 第五步：把模型返回的文本解析成程序能执行的结构。
 function parseAssistantOutput(text: string): ParsedAssistantOutput {
   const actionMatch = text.match(/<action tool="([^"]+)">([\s\S]*?)<\/action>/);
 
@@ -83,20 +95,18 @@ function parseAssistantOutput(text: string): ParsedAssistantOutput {
   };
 }
 
-// 第五步：根据模型请求的工具名，执行对应的工具函数。
+// 第六步：根据模型请求的工具名，从工具表中找到并执行对应的工具函数。
 async function executeTool(action: Action): Promise<string> {
-  if (action.tool === "getTime") {
-    return await getTime();
+  const tool = tools[action.tool];
+
+  if (!tool) {
+    return `Unknown tool: ${action.tool}`;
   }
 
-  if (action.tool === "getWeather") {
-    return await getWeather(action.input);
-  }
-
-  return `Unknown tool: ${action.tool}`;
+  return await tool(action.input);
 }
 
-// 第六步：从命令行读取用户输入的问题。
+// 第七步：从命令行读取用户输入的问题。
 function getUserQuestion(): string {
   const question = process.argv.slice(2).join(" ").trim();
 
@@ -107,7 +117,7 @@ function getUserQuestion(): string {
   return "What is the weather in Shanghai today?";
 }
 
-// 第七步：把“模型决策、工具执行、结果回填”串成一个循环。
+// 第八步：把“模型决策、工具执行、结果回填”串成一个循环。
 async function runAgent(question: string): Promise<void> {
   const history: Message[] = [
     {
@@ -163,5 +173,5 @@ async function runAgent(question: string): Promise<void> {
   console.log("Agent stopped because it reached the max step limit.");
 }
 
-// 第八步：启动 Agent。
+// 第九步：启动 Agent。
 await runAgent(getUserQuestion());
