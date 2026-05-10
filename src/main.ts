@@ -22,30 +22,39 @@ const SYSTEM_PROMPT = `
 You are a tiny teaching Agent.
 
 When you need a tool, respond like this:
+<action tool="getTime">{}</action>
 <action tool="getWeather">{"city":"Shanghai"}</action>
 
 When you know the final answer, respond like this:
 <final>Your answer here.</final>
 `;
 
-// 第二步：先用假模型模拟真实大模型的两种输出。
+// 第二步：先用假模型模拟真实大模型的多轮工具调用。
 async function fakeLLM(messages: Message[]): Promise<string> {
-  const hasObservation = messages.some((message) =>
-    message.content.includes("<observation>")
-  );
+  const allMessages = messages.map((message) => message.content).join("\n");
+  const hasTimeObservation = allMessages.includes("Current time:");
+  const hasWeatherObservation = allMessages.includes("Weather result:");
 
-  if (!hasObservation) {
+  if (!hasTimeObservation) {
+    return '<action tool="getTime">{}</action>';
+  }
+
+  if (!hasWeatherObservation) {
     return '<action tool="getWeather">{"city":"Shanghai"}</action>';
   }
 
-  return "<final>根据工具结果，上海今天是多云，气温 22°C。这个答案来自 Agent 调用工具后的观察结果。</final>";
+  return "<final>我已经先获取当前时间，再查询上海天气。根据工具结果，上海今天是多云，气温 22°C。</final>";
 }
 
-// 第三步：准备一个工具，模拟查询天气。
+// 第三步：准备两个工具，分别模拟查询时间和查询天气。
+async function getTime(): Promise<string> {
+  return `Current time: ${new Date().toISOString()}`;
+}
+
 async function getWeather(input: string): Promise<string> {
   const data = JSON.parse(input) as { city: string };
 
-  return `${data.city} weather: cloudy, 22°C`;
+  return `Weather result: ${data.city} weather is cloudy, 22°C`;
 }
 
 // 第四步：把模型返回的文本解析成程序能执行的结构。
@@ -76,6 +85,10 @@ function parseAssistantOutput(text: string): ParsedAssistantOutput {
 
 // 第五步：根据模型请求的工具名，执行对应的工具函数。
 async function executeTool(action: Action): Promise<string> {
+  if (action.tool === "getTime") {
+    return await getTime();
+  }
+
   if (action.tool === "getWeather") {
     return await getWeather(action.input);
   }
