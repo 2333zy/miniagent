@@ -1,0 +1,57 @@
+import type { Action } from "./types.js";
+
+type ToolFunction = (input: string) => Promise<string>;
+
+type ToolMap = {
+  [toolName: string]: ToolFunction | undefined;
+};
+
+type WeatherInput = {
+  city: string;
+  time: string;
+};
+
+// 时间工具：返回当前时间，供模型继续传给天气工具。
+async function getTime(_input: string): Promise<string> {
+  return `Current time: ${new Date().toISOString()}`;
+}
+
+// 天气工具：目前先返回模拟天气，但会校验模型传入的 city 和 time。
+async function getWeather(input: string): Promise<string> {
+  const data = JSON.parse(input) as Partial<WeatherInput>;
+
+  if (typeof data.city !== "string") {
+    throw new Error("getWeather 需要 city 字段，并且 city 必须是字符串");
+  }
+
+  if (typeof data.time !== "string") {
+    throw new Error("getWeather 需要 time 字段，并且 time 必须是字符串");
+  }
+
+  return `Weather result: ${data.city} weather at ${data.time} is cloudy, 22°C`;
+}
+
+// 工具注册表：以后新增工具时，主要是在这里登记。
+const tools: ToolMap = {
+  getTime,
+  getWeather,
+};
+
+// 根据模型请求的工具名，从工具表中找到并执行对应工具。
+export async function executeTool(action: Action): Promise<string> {
+  const tool = tools[action.tool];
+
+  if (!tool) {
+    return `Tool error: unknown tool "${action.tool}"`;
+  }
+
+  try {
+    return await tool(action.input);
+  } catch (error) {
+    if (error instanceof Error) {
+      return `Tool error from ${action.tool}: ${error.message}`;
+    }
+
+    return `Tool error from ${action.tool}: ${String(error)}`;
+  }
+}
