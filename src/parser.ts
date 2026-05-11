@@ -21,6 +21,14 @@ export function parseAssistantOutput(text: string): ParsedAssistantOutput {
     };
   }
 
+  const openFinalMatch = text.match(/<final>([\s\S]*)/);
+
+  if (openFinalMatch) {
+    return {
+      final: openFinalMatch[1],
+    };
+  }
+
   return {
     final: text,
   };
