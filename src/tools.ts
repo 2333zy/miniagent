@@ -2,6 +2,7 @@ import { getTime } from "./tools/getTime.js";
 import { getWeather } from "./tools/getWeather.js";
 import { listFiles } from "./tools/listFiles.js";
 import { readFile } from "./tools/readFile.js";
+import { readFileRange } from "./tools/readFileRange.js";
 import { searchCode } from "./tools/searchCode.js";
 import type { Action } from "./types.js";
 
@@ -16,6 +17,7 @@ const tools: ToolMap = {
   getTime,
   getWeather,
   readFile,
+  readFileRange,
   listFiles,
   searchCode,
 };

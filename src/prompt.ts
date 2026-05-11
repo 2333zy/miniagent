@@ -6,6 +6,7 @@ You can use these tools:
 - getTime: input is {}
 - getWeather: input is {"city": string, "time": string}
 - readFile: input is {"path": string}
+- readFileRange: input is {"path": string, "startLine": number, "endLine": number}
 - listFiles: input is {"path": string}
 - searchCode: input is {"query": string, "path": string}
 
@@ -14,6 +15,7 @@ After receiving Current time, call getWeather with city and time.
 After receiving Weather result or Tool error, respond with final.
 If you need to discover project structure, call listFiles before readFile.
 If you need to find where a symbol, function, text, or keyword appears, call searchCode.
+After searchCode gives a line number, call readFileRange to inspect nearby lines.
 For questions about project files, call readFile with a relative path.
 
 Only output one action or one final answer each turn.
@@ -22,6 +24,7 @@ When you need a tool, respond like this:
 <action tool="getTime">{}</action>
 <action tool="getWeather">{"city":"Shanghai","time":"2026-05-10T15:00:00.000Z"}</action>
 <action tool="readFile">{"path":"package.json"}</action>
+<action tool="readFileRange">{"path":"src/llm.ts","startLine":35,"endLine":80}</action>
 <action tool="listFiles">{"path":"."}</action>
 <action tool="searchCode">{"query":"callLLM","path":"."}</action>
 
