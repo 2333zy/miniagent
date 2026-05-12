@@ -30,6 +30,11 @@ export function rememberFinalAnswer(
   }
 }
 
+// 清空当前交互会话的短期记忆，适合换话题时使用。
+export function clearSessionMemory(memory: SessionMemory): void {
+  memory.splice(0, memory.length);
+}
+
 // 把短期记忆整理成一段文本，下一次调用模型时放进 messages。
 export function formatSessionMemory(memory: SessionMemory): string | undefined {
   if (memory.length === 0) {

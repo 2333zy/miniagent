@@ -50,6 +50,10 @@ export function traceMemoryView(memoryText: string | undefined): void {
   traceBlock("Session memory", [memoryText ?? "Current session memory is empty."]);
 }
 
+export function traceMemoryCleared(): void {
+  traceBlock("Memory cleared", ["Current session memory is now empty."]);
+}
+
 export function traceStepStart(step: number): void {
   traceLine(`\n--- Step ${step} ---`);
 }

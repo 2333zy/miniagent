@@ -3,6 +3,7 @@ import { createInterface, type Interface } from "node:readline/promises";
 
 import { callLLM, loadLLMConfig } from "./llm.js";
 import {
+  clearSessionMemory,
   createSessionMemory,
   formatSessionMemory,
   rememberFinalAnswer,
@@ -16,6 +17,7 @@ import {
   traceFinalAnswer,
   traceLLMConfigStatus,
   traceMaxStepsReached,
+  traceMemoryCleared,
   traceMemoryContext,
   traceMemoryUpdated,
   traceMemoryView,
@@ -138,6 +140,12 @@ async function runInteractiveSession(llmConfig: LLMConfig): Promise<void> {
 
       if (question === "/memory") {
         traceMemoryView(formatSessionMemory(memory));
+        continue;
+      }
+
+      if (question === "/clear") {
+        clearSessionMemory(memory);
+        traceMemoryCleared();
         continue;
       }
 
