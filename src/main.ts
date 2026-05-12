@@ -15,6 +15,7 @@ import {
   saveTraceToFile,
   traceAssistantOutput,
   traceFinalAnswer,
+  traceHelp,
   traceLLMConfigStatus,
   traceMaxStepsReached,
   traceMemoryCleared,
@@ -136,6 +137,11 @@ async function runInteractiveSession(llmConfig: LLMConfig): Promise<void> {
       if (question === "/exit" || question === "/quit") {
         traceSessionEnd();
         return;
+      }
+
+      if (question === "/help") {
+        traceHelp();
+        continue;
       }
 
       if (question === "/memory") {

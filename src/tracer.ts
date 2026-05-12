@@ -8,11 +8,21 @@ const TRACE_DIR = "logs";
 
 // 日志模块：集中打印 Agent 运行过程，避免 main.ts 里到处都是 console.log。
 export function traceSessionStart(): void {
-  traceBlock("Session start", ["MiniAgent interactive mode started.", "Type /exit to quit."]);
+  traceBlock("Session start", ["MiniAgent interactive mode started.", "Type /help to see commands."]);
 }
 
 export function traceSessionEnd(): void {
   traceBlock("Session end", ["MiniAgent stopped."]);
+}
+
+export function traceHelp(): void {
+  traceBlock("Help", [
+    "/help    Show available commands.",
+    "/memory  Show current session memory.",
+    "/clear   Clear current session memory.",
+    "/exit    Quit MiniAgent.",
+    "/quit    Quit MiniAgent.",
+  ]);
 }
 
 export function traceTaskStart(taskNumber: number): void {
