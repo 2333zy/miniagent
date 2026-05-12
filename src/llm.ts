@@ -25,17 +25,7 @@ export function loadLLMConfig(): LLMConfig {
   };
 }
 
-// 第二步：打印当前用的是哪个模型服务。
-// 这里永远不打印真实 API key，只告诉你有没有配置成功。
-export function printLLMConfigStatus(config: LLMConfig): void {
-  console.log("LLM config:");
-  console.log(`- API key: ${config.apiKey ? "configured" : "missing"}`);
-  console.log(`- Base URL: ${config.baseUrl}`);
-  console.log(`- Model: ${config.model}`);
-  console.log("- Runtime: real LLM");
-}
-
-// 第三步：把 Agent 的 history 发送给真实大模型。
+// 第二步：把 Agent 的 history 发送给真实大模型。
 // 这个函数只负责“模型通信”：发请求、收响应、取出 assistant 文本。
 export async function callLLM(messages: Message[], config: LLMConfig): Promise<string> {
   if (!config.apiKey) {
