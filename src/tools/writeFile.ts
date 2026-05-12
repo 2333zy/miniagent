@@ -2,6 +2,7 @@ import { mkdir, writeFile as writeFileToDisk } from "node:fs/promises";
 import path from "node:path";
 
 import { resolveSafePath } from "./pathSafety.js";
+import { formatWrittenFileReviewHint } from "./reviewHint.js";
 import { getRequiredString, parseJsonObject } from "./validation.js";
 
 // 写文件工具第一版：只允许写 notes/ 目录下的 Markdown 文件。
@@ -18,7 +19,11 @@ export async function writeFile(input: string): Promise<string> {
   await mkdir(path.dirname(safePath), { recursive: true });
   await writeFileToDisk(safePath, content, "utf8");
 
-  return `File written: ${relativePath}\nCharacters: ${content.length}`;
+  return [
+    `File written: ${relativePath}`,
+    `Characters: ${content.length}`,
+    formatWrittenFileReviewHint(relativePath),
+  ].join("\n");
 }
 
 function validateWritableMarkdownPath(relativePath: string): void {

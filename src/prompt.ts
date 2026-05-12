@@ -25,6 +25,8 @@ For questions about project files, call readFile with a relative path.
 Before replaceInFile, read the target file or range so oldText is exact.
 Use writeFile only when the user asks you to create or update a Markdown note in notes/.
 writeFile and replaceInFile require user approval before execution.
+After replaceInFile succeeds, call bash with the Review command before final.
+After writeFile succeeds, call readFile on the written file before final.
 
 Only output one action or one final answer each turn.
 

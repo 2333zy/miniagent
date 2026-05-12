@@ -2,6 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { resolveSafePath } from "./pathSafety.js";
+import { formatDiffReviewCommand } from "./reviewHint.js";
 import { getRequiredString, getStringField, parseJsonObject } from "./validation.js";
 
 const EDITABLE_EXTENSIONS = new Set([
@@ -54,6 +55,7 @@ export async function replaceInFile(input: string): Promise<string> {
     `Replacements: 1`,
     `Old text characters: ${oldText.length}`,
     `New text characters: ${newText.length}`,
+    formatDiffReviewCommand(relativePath),
   ].join("\n");
 }
 
