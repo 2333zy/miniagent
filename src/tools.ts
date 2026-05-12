@@ -1,3 +1,4 @@
+import { bash } from "./tools/bash.js";
 import { getTime } from "./tools/getTime.js";
 import { getWeather } from "./tools/getWeather.js";
 import { listFiles } from "./tools/listFiles.js";
@@ -14,6 +15,7 @@ type ToolMap = {
 
 // 工具注册表：以后新增工具时，主要是在这里登记。
 const tools: ToolMap = {
+  bash,
   getTime,
   getWeather,
   readFile,
