@@ -80,6 +80,14 @@ export function traceToolObservation(observation: string): void {
   traceBlock("Tool observation", [observation]);
 }
 
+export function traceToolLimitReached(maxToolCalls: number): void {
+  traceBlock("Tool limit", [`Reached max tool calls: ${maxToolCalls}`]);
+}
+
+export function traceToolSummary(summary: string): void {
+  traceBlock("Tool summary", [summary]);
+}
+
 export function traceFinalAnswer(answer: string): void {
   traceBlock("Final answer", [answer]);
 }

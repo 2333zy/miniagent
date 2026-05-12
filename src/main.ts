@@ -12,6 +12,13 @@ import {
 import { parseAssistantOutput } from "./parser.js";
 import { SYSTEM_PROMPT } from "./prompt.js";
 import {
+  createToolStats,
+  formatToolStats,
+  hasReachedToolCallLimit,
+  MAX_TOOL_CALLS_PER_TASK,
+  recordToolCall,
+} from "./toolStats.js";
+import {
   saveTraceToFile,
   traceAssistantOutput,
   traceFinalAnswer,
@@ -28,13 +35,15 @@ import {
   traceTaskError,
   traceTaskStart,
   traceToolCall,
+  traceToolLimitReached,
   traceToolObservation,
+  traceToolSummary,
   traceUserQuestion,
 } from "./tracer.js";
 import { executeTool } from "./tools.js";
 import type { LLMConfig, Message } from "./types.js";
 
-const MAX_AGENT_STEPS = 5;
+const MAX_AGENT_STEPS = 6;
 
 type ReadlineClosedError = Error & {
   code?: string;
@@ -57,6 +66,7 @@ async function runAgent(
   llmConfig: LLMConfig,
   memory?: SessionMemory,
 ): Promise<string | undefined> {
+  const toolStats = createToolStats();
   const history: Message[] = [
     {
       role: "system",
@@ -81,39 +91,61 @@ async function runAgent(
 
   traceUserQuestion(question);
 
-  for (let step = 1; step <= MAX_AGENT_STEPS; step = step + 1) {
-    traceStepStart(step);
-    const assistantText = await callLLM(history, llmConfig);
+  try {
+    for (let step = 1; step <= MAX_AGENT_STEPS; step = step + 1) {
+      traceStepStart(step);
+      const assistantText = await callLLM(history, llmConfig);
 
-    traceAssistantOutput(assistantText);
-
-    history.push({
-      role: "assistant",
-      content: assistantText,
-    });
-
-    const parsed = parseAssistantOutput(assistantText);
-
-    if (parsed.final) {
-      traceFinalAnswer(parsed.final);
-      return parsed.final;
-    }
-
-    if (parsed.action) {
-      traceToolCall(parsed.action);
-      const observation = await executeTool(parsed.action);
-
-      traceToolObservation(observation);
+      traceAssistantOutput(assistantText);
 
       history.push({
-        role: "user",
-        content: `<observation>${observation}</observation>`,
+        role: "assistant",
+        content: assistantText,
       });
-    }
-  }
 
-  traceMaxStepsReached(MAX_AGENT_STEPS);
-  return undefined;
+      const parsed = parseAssistantOutput(assistantText);
+
+      if (parsed.final) {
+        traceFinalAnswer(parsed.final);
+        return parsed.final;
+      }
+
+      if (parsed.action) {
+        if (hasReachedToolCallLimit(toolStats)) {
+          traceToolLimitReached(MAX_TOOL_CALLS_PER_TASK);
+          history.push({
+            role: "user",
+            content: `<observation>Tool call limit reached. Do not call more tools. Use the available observations to answer with final.</observation>`,
+          });
+          continue;
+        }
+
+        recordToolCall(toolStats, step, parsed.action);
+        traceToolCall(parsed.action);
+        const observation = await executeTool(parsed.action);
+
+        traceToolObservation(observation);
+
+        history.push({
+          role: "user",
+          content: `<observation>${observation}</observation>`,
+        });
+
+        if (hasReachedToolCallLimit(toolStats)) {
+          traceToolLimitReached(MAX_TOOL_CALLS_PER_TASK);
+          history.push({
+            role: "user",
+            content: `<observation>Tool call limit reached. Do not call more tools. Use the available observations to answer with final.</observation>`,
+          });
+        }
+      }
+    }
+
+    traceMaxStepsReached(MAX_AGENT_STEPS);
+    return undefined;
+  } finally {
+    traceToolSummary(formatToolStats(toolStats));
+  }
 }
 
 async function runInteractiveSession(llmConfig: LLMConfig): Promise<void> {
