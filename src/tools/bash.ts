@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
 
+import { truncateOutput } from "./output.js";
 import { resolveSafePath } from "./pathSafety.js";
 import { getRequiredString, parseJsonObject } from "./validation.js";
 
@@ -17,7 +18,6 @@ type ExecFileError = Error & {
 };
 
 const execFileAsync = promisify(execFile);
-const MAX_COMMAND_OUTPUT_CHARS = 8000;
 const COMMAND_TIMEOUT_MS = 30_000;
 
 // 安全命令工具：只允许少量只读或检查类命令。
@@ -183,9 +183,5 @@ function formatCommandResult(
     stderr.trimEnd() || "[empty]",
   ].join("\n");
 
-  if (output.length <= MAX_COMMAND_OUTPUT_CHARS) {
-    return output;
-  }
-
-  return `${output.slice(0, MAX_COMMAND_OUTPUT_CHARS)}\n[truncated: command output is longer than ${MAX_COMMAND_OUTPUT_CHARS} characters]`;
+  return truncateOutput(output, "command output");
 }

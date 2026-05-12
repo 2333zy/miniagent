@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
 
+import { truncateOutput } from "./output.js";
 import { resolveSafePath } from "./pathSafety.js";
 import { getOptionalString, getRequiredString, parseJsonObject } from "./validation.js";
 
@@ -12,7 +13,6 @@ type ExecFileError = Error & {
 };
 
 const execFileAsync = promisify(execFile);
-const MAX_SEARCH_OUTPUT_CHARS = 8000;
 
 // 搜索代码工具：模型只传 query，底层由程序安全调用 rg。
 export async function searchCode(input: string): Promise<string> {
@@ -56,15 +56,7 @@ export async function searchCode(input: string): Promise<string> {
 }
 
 function formatSearchResult(query: string, searchPath: string, output: string): string {
-  if (output.length <= MAX_SEARCH_OUTPUT_CHARS) {
-    return `Search query: ${query}\nPath: ${searchPath}\nMatches:\n${output.trimEnd()}`;
-  }
+  const visibleOutput = truncateOutput(output.trimEnd(), "search output");
 
-  return [
-    `Search query: ${query}`,
-    `Path: ${searchPath}`,
-    `Matches:`,
-    output.slice(0, MAX_SEARCH_OUTPUT_CHARS).trimEnd(),
-    `[truncated: search output is longer than ${MAX_SEARCH_OUTPUT_CHARS} characters]`,
-  ].join("\n");
+  return `Search query: ${query}\nPath: ${searchPath}\nMatches:\n${visibleOutput}`;
 }
