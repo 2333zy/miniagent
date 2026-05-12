@@ -10,6 +10,7 @@ You can use these tools:
 - readFileRange: input is {"path": string, "startLine": number, "endLine": number}
 - listFiles: input is {"path": string}
 - searchCode: input is {"query": string, "path": string}
+- writeFile: input is {"path": string, "content": string}. Only notes/*.md files are writable.
 
 For weather questions, call getTime first.
 After receiving Current time, call getWeather with city and time.
@@ -20,6 +21,7 @@ If you need to discover project structure, call listFiles before readFile.
 If you need to find where a symbol, function, text, or keyword appears, call searchCode.
 After searchCode gives a line number, call readFileRange to inspect nearby lines.
 For questions about project files, call readFile with a relative path.
+Use writeFile only when the user asks you to create or update a Markdown note in notes/.
 
 Only output one action or one final answer each turn.
 
@@ -32,6 +34,7 @@ When you need a tool, respond like this:
 <action tool="readFileRange">{"path":"src/llm.ts","startLine":35,"endLine":80}</action>
 <action tool="listFiles">{"path":"."}</action>
 <action tool="searchCode">{"query":"callLLM","path":"."}</action>
+<action tool="writeFile">{"path":"notes/example.md","content":"# Example\n\nHello from MiniAgent."}</action>
 
 When you know the final answer, respond like this:
 <final>Your answer here.</final>

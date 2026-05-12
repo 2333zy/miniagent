@@ -5,6 +5,7 @@ import { listFiles } from "./tools/listFiles.js";
 import { readFile } from "./tools/readFile.js";
 import { readFileRange } from "./tools/readFileRange.js";
 import { searchCode } from "./tools/searchCode.js";
+import { writeFile } from "./tools/writeFile.js";
 import type { Action } from "./types.js";
 
 type ToolFunction = (input: string) => Promise<string>;
@@ -22,6 +23,7 @@ const tools: ToolMap = {
   readFileRange,
   listFiles,
   searchCode,
+  writeFile,
 };
 
 // 根据模型请求的工具名，从工具表中找到并执行对应工具。
