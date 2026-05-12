@@ -46,6 +46,10 @@ export function traceMemoryUpdated(memorySize: number): void {
   traceBlock("Memory updated", [`Stored tasks: ${memorySize}`]);
 }
 
+export function traceMemoryView(memoryText: string | undefined): void {
+  traceBlock("Session memory", [memoryText ?? "Current session memory is empty."]);
+}
+
 export function traceStepStart(step: number): void {
   traceLine(`\n--- Step ${step} ---`);
 }

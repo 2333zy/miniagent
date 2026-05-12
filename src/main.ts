@@ -18,6 +18,7 @@ import {
   traceMaxStepsReached,
   traceMemoryContext,
   traceMemoryUpdated,
+  traceMemoryView,
   traceSessionEnd,
   traceSessionStart,
   traceStepStart,
@@ -135,6 +136,11 @@ async function runInteractiveSession(llmConfig: LLMConfig): Promise<void> {
         return;
       }
 
+      if (question === "/memory") {
+        traceMemoryView(formatSessionMemory(memory));
+        continue;
+      }
+
       if (!question) {
         continue;
       }
@@ -159,15 +165,46 @@ async function runInteractiveSession(llmConfig: LLMConfig): Promise<void> {
 }
 
 async function askQuestion(rl: Interface): Promise<string | undefined> {
-  try {
-    return await rl.question("\nYou > ");
-  } catch (error) {
-    if (isReadlineClosedError(error)) {
-      return undefined;
-    }
+  return new Promise((resolve, reject) => {
+    let isSettled = false;
 
-    throw error;
-  }
+    const finish = (value: string | undefined): void => {
+      if (isSettled) {
+        return;
+      }
+
+      isSettled = true;
+      rl.off("close", handleClose);
+      resolve(value);
+    };
+
+    const fail = (error: unknown): void => {
+      if (isSettled) {
+        return;
+      }
+
+      isSettled = true;
+      rl.off("close", handleClose);
+      reject(error);
+    };
+
+    const handleClose = (): void => {
+      finish(undefined);
+    };
+
+    rl.once("close", handleClose);
+
+    rl.question("\nYou > ")
+      .then(finish)
+      .catch((error: unknown) => {
+        if (isReadlineClosedError(error)) {
+          finish(undefined);
+          return;
+        }
+
+        fail(error);
+      });
+  });
 }
 
 function isReadlineClosedError(error: unknown): error is ReadlineClosedError {
