@@ -15,6 +15,7 @@ For weather questions, call getTime first.
 After receiving Current time, call getWeather with city and time.
 After receiving Weather result or Tool error, respond with final.
 Use bash when you need to run a type check, inspect git state, or run a safe code search command.
+If <session_memory> is provided, use it only as background about previous tasks.
 If you need to discover project structure, call listFiles before readFile.
 If you need to find where a symbol, function, text, or keyword appears, call searchCode.
 After searchCode gives a line number, call readFileRange to inspect nearby lines.

@@ -38,6 +38,14 @@ export function traceUserQuestion(question: string): void {
   traceBlock("User question", [question]);
 }
 
+export function traceMemoryContext(memoryText: string): void {
+  traceBlock("Memory context", [memoryText]);
+}
+
+export function traceMemoryUpdated(memorySize: number): void {
+  traceBlock("Memory updated", [`Stored tasks: ${memorySize}`]);
+}
+
 export function traceStepStart(step: number): void {
   traceLine(`\n--- Step ${step} ---`);
 }

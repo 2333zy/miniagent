@@ -2,6 +2,12 @@ import { stdin as input, stdout as output } from "node:process";
 import { createInterface, type Interface } from "node:readline/promises";
 
 import { callLLM, loadLLMConfig } from "./llm.js";
+import {
+  createSessionMemory,
+  formatSessionMemory,
+  rememberFinalAnswer,
+  type SessionMemory,
+} from "./memory.js";
 import { parseAssistantOutput } from "./parser.js";
 import { SYSTEM_PROMPT } from "./prompt.js";
 import {
@@ -10,6 +16,8 @@ import {
   traceFinalAnswer,
   traceLLMConfigStatus,
   traceMaxStepsReached,
+  traceMemoryContext,
+  traceMemoryUpdated,
   traceSessionEnd,
   traceSessionStart,
   traceStepStart,
@@ -40,17 +48,32 @@ function getCliQuestion(): string | undefined {
 }
 
 // 把“模型决策、工具执行、结果回填”串成一个循环。
-async function runAgent(question: string, llmConfig: LLMConfig): Promise<void> {
+async function runAgent(
+  question: string,
+  llmConfig: LLMConfig,
+  memory?: SessionMemory,
+): Promise<string | undefined> {
   const history: Message[] = [
     {
       role: "system",
       content: SYSTEM_PROMPT,
     },
-    {
-      role: "user",
-      content: question,
-    },
   ];
+  const memoryText = memory ? formatSessionMemory(memory) : undefined;
+
+  if (memoryText) {
+    traceMemoryContext(memoryText);
+
+    history.push({
+      role: "user",
+      content: `<session_memory>\n${memoryText}\n</session_memory>`,
+    });
+  }
+
+  history.push({
+    role: "user",
+    content: question,
+  });
 
   traceUserQuestion(question);
 
@@ -69,7 +92,7 @@ async function runAgent(question: string, llmConfig: LLMConfig): Promise<void> {
 
     if (parsed.final) {
       traceFinalAnswer(parsed.final);
-      return;
+      return parsed.final;
     }
 
     if (parsed.action) {
@@ -86,10 +109,12 @@ async function runAgent(question: string, llmConfig: LLMConfig): Promise<void> {
   }
 
   traceMaxStepsReached(MAX_AGENT_STEPS);
+  return undefined;
 }
 
 async function runInteractiveSession(llmConfig: LLMConfig): Promise<void> {
   const rl = createInterface({ input, output });
+  const memory = createSessionMemory();
   let taskNumber = 1;
 
   traceSessionStart();
@@ -116,7 +141,12 @@ async function runInteractiveSession(llmConfig: LLMConfig): Promise<void> {
 
       traceTaskStart(taskNumber);
       try {
-        await runAgent(question, llmConfig);
+        const finalAnswer = await runAgent(question, llmConfig, memory);
+
+        if (finalAnswer) {
+          rememberFinalAnswer(memory, question, finalAnswer);
+          traceMemoryUpdated(memory.length);
+        }
       } catch (error) {
         traceTaskError(error);
       }
