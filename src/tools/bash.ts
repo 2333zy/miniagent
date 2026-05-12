@@ -1,6 +1,8 @@
 import { execFile } from "node:child_process";
+import path from "node:path";
 import { promisify } from "node:util";
 
+import { resolveSafePath } from "./pathSafety.js";
 import { getRequiredString, parseJsonObject } from "./validation.js";
 
 type SafeCommand = {
@@ -90,6 +92,10 @@ function npmRunCheckCommand(): SafeCommand {
 function safeGitCommand(args: string[]): SafeCommand {
   const command = args.join(" ");
 
+  if (isGitDiffForPath(args)) {
+    return gitDiffForPathCommand(args);
+  }
+
   if (
     command === "status" ||
     command === "status --short" ||
@@ -103,6 +109,30 @@ function safeGitCommand(args: string[]): SafeCommand {
   }
 
   throw new Error(`bash 不允许执行 git ${command}`);
+}
+
+function isGitDiffForPath(args: string[]): boolean {
+  return (
+    (args.length === 3 && args[0] === "diff" && args[1] === "--") ||
+    (args.length === 4 && args[0] === "diff" && args[1] === "--stat" && args[2] === "--")
+  );
+}
+
+function gitDiffForPathCommand(args: string[]): SafeCommand {
+  const requestedPath = args.at(-1);
+
+  if (!requestedPath || requestedPath.startsWith("-")) {
+    throw new Error("git diff 需要安全的项目内路径");
+  }
+
+  const safePath = resolveSafePath(requestedPath);
+  const relativePath = path.relative(process.cwd(), safePath) || ".";
+
+  if (args[1] === "--stat") {
+    return { file: "git", args: ["diff", "--stat", "--", relativePath] };
+  }
+
+  return { file: "git", args: ["diff", "--", relativePath] };
 }
 
 function safeRipgrepCommand(args: string[]): SafeCommand {
