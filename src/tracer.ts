@@ -1,6 +1,24 @@
 import type { Action, LLMConfig } from "./types.js";
 
 // 日志模块：集中打印 Agent 运行过程，避免 main.ts 里到处都是 console.log。
+export function traceSessionStart(): void {
+  traceBlock("Session start", ["MiniAgent interactive mode started.", "Type /exit to quit."]);
+}
+
+export function traceSessionEnd(): void {
+  traceBlock("Session end", ["MiniAgent stopped."]);
+}
+
+export function traceTaskStart(taskNumber: number): void {
+  console.log(`\n=== Task ${taskNumber} ===`);
+}
+
+export function traceTaskError(error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+
+  traceBlock("Task error", [message]);
+}
+
 export function traceLLMConfigStatus(config: LLMConfig): void {
   traceBlock("LLM config", [
     `API key: ${config.apiKey ? "configured" : "missing"}`,
