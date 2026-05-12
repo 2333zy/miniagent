@@ -3,11 +3,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import { resolveSafePath } from "./pathSafety.js";
-
-type SearchCodeInput = {
-  query: string;
-  path?: string;
-};
+import { getOptionalString, getRequiredString, parseJsonObject } from "./validation.js";
 
 type ExecFileError = Error & {
   code?: number | string;
@@ -20,17 +16,11 @@ const MAX_SEARCH_OUTPUT_CHARS = 8000;
 
 // 搜索代码工具：模型只传 query，底层由程序安全调用 rg。
 export async function searchCode(input: string): Promise<string> {
-  const data = JSON.parse(input) as Partial<SearchCodeInput>;
+  const data = parseJsonObject(input, "searchCode");
+  const query = getRequiredString(data, "query", "searchCode");
+  const requestedPath = getOptionalString(data, "path", "searchCode");
 
-  if (typeof data.query !== "string" || data.query.trim().length === 0) {
-    throw new Error("searchCode 需要非空 query 字段");
-  }
-
-  if (data.path !== undefined && typeof data.path !== "string") {
-    throw new Error("searchCode 的 path 字段必须是字符串");
-  }
-
-  const searchRoot = resolveSafePath(data.path ?? ".");
+  const searchRoot = resolveSafePath(requestedPath ?? ".");
   const relativeRoot = path.relative(process.cwd(), searchRoot) || ".";
   const args = [
     "--line-number",
@@ -42,7 +32,7 @@ export async function searchCode(input: string): Promise<string> {
     "!dist",
     "--glob",
     "!.git",
-    data.query,
+    query,
     relativeRoot,
   ];
 
@@ -53,12 +43,12 @@ export async function searchCode(input: string): Promise<string> {
       windowsHide: true,
     });
 
-    return formatSearchResult(data.query, relativeRoot, stdout);
+    return formatSearchResult(query, relativeRoot, stdout);
   } catch (error) {
     const execError = error as ExecFileError;
 
     if (execError.code === 1) {
-      return `Search query: ${data.query}\nPath: ${relativeRoot}\nMatches:\nNo matches found.`;
+      return `Search query: ${query}\nPath: ${relativeRoot}\nMatches:\nNo matches found.`;
     }
 
     throw new Error(execError.stderr || execError.message);

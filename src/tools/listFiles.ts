@@ -2,23 +2,17 @@ import { readdir } from "node:fs/promises";
 import path from "node:path";
 
 import { isSensitivePath, resolveSafePath } from "./pathSafety.js";
-
-type ListFilesInput = {
-  path?: string;
-};
+import { getOptionalString, parseJsonObject } from "./validation.js";
 
 const MAX_LIST_ENTRIES = 120;
 const IGNORED_DIRECTORIES = new Set([".git", "node_modules", "dist"]);
 
 // 列目录工具：递归列出当前项目内的文件，方便模型先探索项目结构。
 export async function listFiles(input: string): Promise<string> {
-  const data = JSON.parse(input || "{}") as Partial<ListFilesInput>;
+  const data = parseJsonObject(input || "{}", "listFiles");
+  const requestedPath = getOptionalString(data, "path", "listFiles");
 
-  if (data.path !== undefined && typeof data.path !== "string") {
-    throw new Error("listFiles 的 path 字段必须是字符串");
-  }
-
-  const safePath = resolveSafePath(data.path ?? ".");
+  const safePath = resolveSafePath(requestedPath ?? ".");
   const entries = await collectFiles(safePath);
   const relativePath = path.relative(process.cwd(), safePath) || ".";
   const visibleEntries = entries.slice(0, MAX_LIST_ENTRIES);

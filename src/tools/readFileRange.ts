@@ -2,33 +2,16 @@ import { readFile as readFileFromDisk } from "node:fs/promises";
 import path from "node:path";
 
 import { resolveSafePath } from "./pathSafety.js";
-
-type ReadFileRangeInput = {
-  path: string;
-  startLine: number;
-  endLine: number;
-};
+import { getRequiredInteger, getRequiredString, parseJsonObject } from "./validation.js";
 
 const MAX_RANGE_LINES = 200;
 
 // 按行读取文件片段：适合 searchCode 定位后查看附近上下文。
 export async function readFileRange(input: string): Promise<string> {
-  const data = JSON.parse(input) as Partial<ReadFileRangeInput>;
-
-  if (typeof data.path !== "string") {
-    throw new Error("readFileRange 需要 path 字段，并且 path 必须是字符串");
-  }
-
-  if (!Number.isInteger(data.startLine) || !Number.isInteger(data.endLine)) {
-    throw new Error("readFileRange 需要整数 startLine 和 endLine 字段");
-  }
-
-  const startLine = data.startLine;
-  const endLine = data.endLine;
-
-  if (startLine === undefined || endLine === undefined) {
-    throw new Error("readFileRange 需要 startLine 和 endLine 字段");
-  }
+  const data = parseJsonObject(input, "readFileRange");
+  const requestedPath = getRequiredString(data, "path", "readFileRange");
+  const startLine = getRequiredInteger(data, "startLine", "readFileRange");
+  const endLine = getRequiredInteger(data, "endLine", "readFileRange");
 
   if (startLine < 1 || endLine < startLine) {
     throw new Error("readFileRange 要求 startLine >= 1 且 endLine >= startLine");
@@ -38,7 +21,7 @@ export async function readFileRange(input: string): Promise<string> {
     throw new Error(`readFileRange 一次最多读取 ${MAX_RANGE_LINES} 行`);
   }
 
-  const safePath = resolveSafePath(data.path);
+  const safePath = resolveSafePath(requestedPath);
   const content = await readFileFromDisk(safePath, "utf8");
   const lines = content.split(/\r?\n/);
   const startIndex = startLine - 1;

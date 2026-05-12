@@ -1,9 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-type BashInput = {
-  command: string;
-};
+import { getRequiredString, parseJsonObject } from "./validation.js";
 
 type SafeCommand = {
   file: string;
@@ -22,13 +20,10 @@ const COMMAND_TIMEOUT_MS = 30_000;
 
 // 安全命令工具：只允许少量只读或检查类命令。
 export async function bash(input: string): Promise<string> {
-  const data = JSON.parse(input) as Partial<BashInput>;
+  const data = parseJsonObject(input, "bash");
+  const command = getRequiredString(data, "command", "bash");
 
-  if (typeof data.command !== "string" || data.command.trim().length === 0) {
-    throw new Error("bash 需要非空 command 字段");
-  }
-
-  const tokens = parseCommand(data.command);
+  const tokens = parseCommand(command);
   const safeCommand = toSafeCommand(tokens);
 
   try {
@@ -39,13 +34,13 @@ export async function bash(input: string): Promise<string> {
       windowsHide: true,
     });
 
-    return formatCommandResult(data.command, 0, stdout, stderr);
+    return formatCommandResult(command, 0, stdout, stderr);
   } catch (error) {
     const execError = error as ExecFileError;
 
     if (execError.code !== undefined) {
       return formatCommandResult(
-        data.command,
+        command,
         execError.code,
         execError.stdout ?? "",
         execError.stderr ?? execError.message,
