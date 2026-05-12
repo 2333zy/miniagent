@@ -5,6 +5,7 @@ import { callLLM, loadLLMConfig } from "./llm.js";
 import { parseAssistantOutput } from "./parser.js";
 import { SYSTEM_PROMPT } from "./prompt.js";
 import {
+  saveTraceToFile,
   traceAssistantOutput,
   traceFinalAnswer,
   traceLLMConfigStatus,
@@ -123,6 +124,7 @@ async function runInteractiveSession(llmConfig: LLMConfig): Promise<void> {
     }
   } finally {
     rl.close();
+    await saveTraceToFile();
   }
 }
 

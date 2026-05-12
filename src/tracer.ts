@@ -1,4 +1,10 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+
 import type { Action, LLMConfig } from "./types.js";
+
+const traceEntries: string[] = [];
+const TRACE_DIR = "logs";
 
 // 日志模块：集中打印 Agent 运行过程，避免 main.ts 里到处都是 console.log。
 export function traceSessionStart(): void {
@@ -10,7 +16,7 @@ export function traceSessionEnd(): void {
 }
 
 export function traceTaskStart(taskNumber: number): void {
-  console.log(`\n=== Task ${taskNumber} ===`);
+  traceLine(`\n=== Task ${taskNumber} ===`);
 }
 
 export function traceTaskError(error: unknown): void {
@@ -33,7 +39,7 @@ export function traceUserQuestion(question: string): void {
 }
 
 export function traceStepStart(step: number): void {
-  console.log(`\n--- Step ${step} ---`);
+  traceLine(`\n--- Step ${step} ---`);
 }
 
 export function traceAssistantOutput(text: string): void {
@@ -56,9 +62,28 @@ export function traceMaxStepsReached(maxSteps: number): void {
   traceBlock("Agent stopped", [`Reached the max step limit: ${maxSteps}`]);
 }
 
+export async function saveTraceToFile(): Promise<string> {
+  const filePath = buildTraceFilePath();
+
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, `${traceEntries.join("\n")}\n`, "utf8");
+
+  const relativePath = path.relative(process.cwd(), filePath);
+
+  console.log(`\n[Trace saved]`);
+  console.log(relativePath);
+
+  return filePath;
+}
+
 function traceBlock(title: string, lines: string[]): void {
-  console.log(`\n[${title}]`);
-  console.log(lines.join("\n"));
+  traceLine(`\n[${title}]`);
+  traceLine(lines.join("\n"));
+}
+
+function traceLine(text: string): void {
+  console.log(text);
+  traceEntries.push(text);
 }
 
 function formatToolInput(input: string): string {
@@ -67,4 +92,10 @@ function formatToolInput(input: string): string {
   } catch {
     return input;
   }
+}
+
+function buildTraceFilePath(): string {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+
+  return path.join(process.cwd(), TRACE_DIR, `${timestamp}.trace.txt`);
 }
