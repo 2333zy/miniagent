@@ -1,6 +1,7 @@
 import { stdin as input, stdout as output } from "node:process";
 import { createInterface, type Interface } from "node:readline/promises";
 
+import { isApprovalGranted, requiresApproval } from "./approval.js";
 import { callLLM, loadLLMConfig } from "./llm.js";
 import {
   clearSessionMemory,
@@ -20,6 +21,8 @@ import {
 } from "./toolStats.js";
 import {
   saveTraceToFile,
+  traceApprovalRequest,
+  traceApprovalResult,
   traceAssistantOutput,
   traceFinalAnswer,
   traceHelp,
@@ -41,9 +44,11 @@ import {
   traceUserQuestion,
 } from "./tracer.js";
 import { executeTool } from "./tools.js";
-import type { LLMConfig, Message } from "./types.js";
+import type { Action, LLMConfig, Message } from "./types.js";
 
 const MAX_AGENT_STEPS = 6;
+
+type ApprovalRequester = (action: Action) => Promise<boolean>;
 
 type ReadlineClosedError = Error & {
   code?: string;
@@ -65,6 +70,7 @@ async function runAgent(
   question: string,
   llmConfig: LLMConfig,
   memory?: SessionMemory,
+  requestApproval?: ApprovalRequester,
 ): Promise<string | undefined> {
   const toolStats = createToolStats();
   const history: Message[] = [
@@ -122,7 +128,7 @@ async function runAgent(
 
         recordToolCall(toolStats, step, parsed.action);
         traceToolCall(parsed.action);
-        const observation = await executeTool(parsed.action);
+        const observation = await executeActionWithApproval(parsed.action, requestApproval);
 
         traceToolObservation(observation);
 
@@ -146,6 +152,23 @@ async function runAgent(
   } finally {
     traceToolSummary(formatToolStats(toolStats));
   }
+}
+
+async function executeActionWithApproval(
+  action: Action,
+  requestApproval?: ApprovalRequester,
+): Promise<string> {
+  if (!requiresApproval(action)) {
+    return await executeTool(action);
+  }
+
+  const approved = requestApproval ? await requestApproval(action) : false;
+
+  if (!approved) {
+    return `Tool approval denied: ${action.tool} was not executed.`;
+  }
+
+  return await executeTool(action);
 }
 
 async function runInteractiveSession(llmConfig: LLMConfig): Promise<void> {
@@ -193,7 +216,9 @@ async function runInteractiveSession(llmConfig: LLMConfig): Promise<void> {
 
       traceTaskStart(taskNumber);
       try {
-        const finalAnswer = await runAgent(question, llmConfig, memory);
+        const finalAnswer = await runAgent(question, llmConfig, memory, (action) =>
+          requestToolApproval(rl, action),
+        );
 
         if (finalAnswer) {
           rememberFinalAnswer(memory, question, finalAnswer);
@@ -210,7 +235,18 @@ async function runInteractiveSession(llmConfig: LLMConfig): Promise<void> {
   }
 }
 
-async function askQuestion(rl: Interface): Promise<string | undefined> {
+async function requestToolApproval(rl: Interface, action: Action): Promise<boolean> {
+  traceApprovalRequest(action);
+
+  const answer = await askQuestion(rl, "\nApprove tool call? (y/N) > ");
+  const approved = isApprovalGranted(answer);
+
+  traceApprovalResult(approved);
+
+  return approved;
+}
+
+async function askQuestion(rl: Interface, prompt = "\nYou > "): Promise<string | undefined> {
   return new Promise((resolve, reject) => {
     let isSettled = false;
 
@@ -235,12 +271,12 @@ async function askQuestion(rl: Interface): Promise<string | undefined> {
     };
 
     const handleClose = (): void => {
-      finish(undefined);
+      setTimeout(() => finish(undefined), 0);
     };
 
     rl.once("close", handleClose);
 
-    rl.question("\nYou > ")
+    rl.question(prompt)
       .then(finish)
       .catch((error: unknown) => {
         if (isReadlineClosedError(error)) {
@@ -269,7 +305,14 @@ async function main(): Promise<void> {
   const cliQuestion = getCliQuestion();
 
   if (cliQuestion) {
-    await runAgent(cliQuestion, llmConfig);
+    const rl = createInterface({ input, output });
+
+    try {
+      await runAgent(cliQuestion, llmConfig, undefined, (action) => requestToolApproval(rl, action));
+    } finally {
+      rl.close();
+    }
+
     return;
   }
 

@@ -22,6 +22,8 @@ export function traceHelp(): void {
     "/clear   Clear current session memory.",
     "/exit    Quit MiniAgent.",
     "/quit    Quit MiniAgent.",
+    "",
+    "Write tools ask for approval before execution.",
   ]);
 }
 
@@ -74,6 +76,18 @@ export function traceAssistantOutput(text: string): void {
 
 export function traceToolCall(action: Action): void {
   traceBlock("Tool call", [`Tool: ${action.tool}`, `Input: ${formatToolInput(action.input)}`]);
+}
+
+export function traceApprovalRequest(action: Action): void {
+  traceBlock("Approval required", [
+    `Tool: ${action.tool}`,
+    `Input: ${formatToolInput(action.input)}`,
+    "Type y or yes to approve. Anything else rejects the tool call.",
+  ]);
+}
+
+export function traceApprovalResult(approved: boolean): void {
+  traceBlock("Approval result", [approved ? "Approved." : "Rejected. Tool was not executed."]);
 }
 
 export function traceToolObservation(observation: string): void {
