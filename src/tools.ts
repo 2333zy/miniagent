@@ -4,6 +4,7 @@ import { getWeather } from "./tools/getWeather.js";
 import { listFiles } from "./tools/listFiles.js";
 import { readFile } from "./tools/readFile.js";
 import { readFileRange } from "./tools/readFileRange.js";
+import { replaceInFile } from "./tools/replaceInFile.js";
 import { searchCode } from "./tools/searchCode.js";
 import { writeFile } from "./tools/writeFile.js";
 import type { Action } from "./types.js";
@@ -21,6 +22,7 @@ const tools: ToolMap = {
   getWeather,
   readFile,
   readFileRange,
+  replaceInFile,
   listFiles,
   searchCode,
   writeFile,

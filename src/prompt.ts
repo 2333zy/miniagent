@@ -8,6 +8,7 @@ You can use these tools:
 - getWeather: input is {"city": string, "time": string}
 - readFile: input is {"path": string}
 - readFileRange: input is {"path": string, "startLine": number, "endLine": number}
+- replaceInFile: input is {"path": string, "oldText": string, "newText": string}. It edits only when oldText appears exactly once.
 - listFiles: input is {"path": string}
 - searchCode: input is {"query": string, "path": string}
 - writeFile: input is {"path": string, "content": string}. Only notes/*.md files are writable.
@@ -21,6 +22,7 @@ If you need to discover project structure, call listFiles before readFile.
 If you need to find where a symbol, function, text, or keyword appears, call searchCode.
 After searchCode gives a line number, call readFileRange to inspect nearby lines.
 For questions about project files, call readFile with a relative path.
+Before replaceInFile, read the target file or range so oldText is exact.
 Use writeFile only when the user asks you to create or update a Markdown note in notes/.
 
 Only output one action or one final answer each turn.
@@ -32,6 +34,7 @@ When you need a tool, respond like this:
 <action tool="getWeather">{"city":"Shanghai","time":"2026-05-10T15:00:00.000Z"}</action>
 <action tool="readFile">{"path":"package.json"}</action>
 <action tool="readFileRange">{"path":"src/llm.ts","startLine":35,"endLine":80}</action>
+<action tool="replaceInFile">{"path":"notes/example.md","oldText":"Hello","newText":"Hello from MiniAgent"}</action>
 <action tool="listFiles">{"path":"."}</action>
 <action tool="searchCode">{"query":"callLLM","path":"."}</action>
 <action tool="writeFile">{"path":"notes/example.md","content":"# Example\n\nHello from MiniAgent."}</action>

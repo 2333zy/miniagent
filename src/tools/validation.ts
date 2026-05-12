@@ -28,6 +28,17 @@ export function getRequiredString(data: JsonObject, fieldName: string, toolName:
   return value;
 }
 
+// 读取必填字符串字段，但允许空字符串：适合 replaceInFile 的 newText。
+export function getStringField(data: JsonObject, fieldName: string, toolName: string): string {
+  const value = data[fieldName];
+
+  if (typeof value !== "string") {
+    throw new Error(`${toolName} 需要 ${fieldName} 字段，并且 ${fieldName} 必须是字符串`);
+  }
+
+  return value;
+}
+
 // 读取可选字符串字段：适合 listFiles/searchCode 里的 path。
 export function getOptionalString(
   data: JsonObject,
